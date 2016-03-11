@@ -33,6 +33,41 @@ fn join_all() {
     assert_eq!(rx.iter().take(3).collect::<Vec<_>>(), vec![1, 2, 3]);
 }
 
+#[test]
+fn join_all_with_thread_panic() {
+    use std::sync::mpsc::Sender;
+    struct OnScopeEnd(Sender<u8>);
+    impl Drop for OnScopeEnd {
+        fn drop(&mut self) {
+            self.0.send(1).unwrap();
+            sleep(Duration::from_millis(200));
+        }
+    }
+    let (tx_, rx) = sync::mpsc::channel();
+    // Use a thread here to handle the expected panic from the pool. Should
+    // be switched to use panic::recover instead when it becomes stable.
+    let handle = thread::spawn(move || {
+        let mut pool = ThreadPool::new(4);
+        let _on_scope_end = OnScopeEnd(tx_.clone());
+        pool.execute(move || {
+            sleep(Duration::from_millis(100));
+            panic!();
+        });
+        for _ in 1..8 {
+            let tx = tx_.clone();
+            pool.execute(move || {
+                sleep(Duration::from_millis(200));
+                tx.send(0).unwrap();
+            });
+        }
+        pool.join_all();
+    });
+    if let Ok(..) = handle.join() {
+        panic!("Pool didn't panic as expected");
+    }
+    let values: Vec<u8> = rx.into_iter().collect();
+    assert_eq!(&values[..], &[0, 0, 0, 0, 0, 0, 0, 1]);
+}
 
 #[test]
 fn test_set_threads_decreasing() {
