@@ -1,6 +1,11 @@
+extern crate libc;
+
 use std::sync::mpsc::{channel, Sender, Receiver, SyncSender, sync_channel, RecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+
+mod mutex;
+pub use mutex::ReentrantMutex;
 
 trait FnBox {
     fn call_box(self: Box<Self>);
