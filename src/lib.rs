@@ -30,6 +30,7 @@ pub struct ThreadPool {
     job_receiver : Arc<Mutex<Receiver<Message>>>,
     active_count: Arc<Mutex<usize>>,
     max_count: Arc<Mutex<usize>>,
+    name : String,
 }
 
 
@@ -39,14 +40,14 @@ struct ThreadData {
     thread_sync_tx: SyncSender<()>,
 }
 
-fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc<Mutex<usize>>) -> ThreadData {
+fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc<Mutex<usize>>, name : String) -> ThreadData {
     let job_receiver = job_receiver.clone();
     let (pool_sync_tx, pool_sync_rx) =
         sync_channel::<()>(0);
     let (thread_sync_tx, thread_sync_rx) =
         sync_channel::<()>(0);
-
-    let thread = thread::spawn(move || {
+    let thread_name = name.clone();
+    let thread = thread::Builder::new().name(name).spawn(move || {
         loop {
             let message = {
                 // Only lock jobs for the time it takes
@@ -54,10 +55,8 @@ fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc
                 let lock = job_receiver.lock().unwrap();
                 lock.recv()
             };
-
             match message {
                 Ok(Message::NewJob(job)) => {
-
                     *active_count.lock().unwrap() += 1;
                     job.call_box();
                     *active_count.lock().unwrap() -= 1;
@@ -87,7 +86,7 @@ fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc
                 }
             }
         }
-    });
+    }).ok().unwrap();
     ThreadData {
         _thread_join_handle: thread,
         pool_sync_rx: pool_sync_rx,
@@ -98,6 +97,10 @@ impl ThreadPool {
     /// Construct a threadpool with the given number of threads.
     /// Minimum value is `1`.
     pub fn new(n: usize) -> ThreadPool {
+        Self::new_with_name(n, "unknow".to_string())
+    }
+
+    pub fn new_with_name(n : usize, name : String) -> ThreadPool {
         assert!(n >= 1);
 
         let (job_sender, job_receiver) = channel();
@@ -107,7 +110,7 @@ impl ThreadPool {
         let mut threads = Vec::with_capacity(n as usize);
         // spawn n threads, put them in waiting mode
         for _ in 0..n {
-            let thread = create_thread(job_receiver.clone(), active_count.clone());
+            let thread = create_thread(job_receiver.clone(), active_count.clone(), name.clone());
             threads.push(thread);
         }
 
@@ -117,6 +120,7 @@ impl ThreadPool {
             job_receiver : job_receiver.clone(),
             active_count : active_count,
             max_count    : max_count,
+            name         : name,
         }
     }
 
@@ -178,7 +182,7 @@ impl ThreadPool {
             return -1;
         }
         for _ in 0 .. (threads - self.thread_count()) {
-            let thread = create_thread(self.job_receiver.clone(), self.active_count.clone());
+            let thread = create_thread(self.job_receiver.clone(), self.active_count.clone(), self.name.clone());
             self.threads.push(thread);
         }
 
