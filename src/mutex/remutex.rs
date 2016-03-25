@@ -8,7 +8,8 @@
 
 use std::fmt;
 use std::marker;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
+use std::cell::UnsafeCell;
 
 use super::sys;
 use super::poison::{self, TryLockError, TryLockResult, LockResult};
@@ -18,17 +19,17 @@ use super::poison::{self, TryLockError, TryLockResult, LockResult};
 /// This mutex will block *other* threads waiting for the lock to become available. The thread
 /// which has already locked the mutex can lock it multiple times without blocking, preventing a
 /// common source of deadlocks.
-pub struct ReentrantMutex<T> {
+pub struct ReentrantMutex<T: ?Sized> {
     inner: Box<sys::ReentrantMutex>,
     poison: poison::Flag,
-    data: T,
+    data: UnsafeCell<T>,
 }
 
-unsafe impl<T: Send> Send for ReentrantMutex<T> {}
-unsafe impl<T: Send> Sync for ReentrantMutex<T> {}
+unsafe impl<T: Send + ?Sized> Send for ReentrantMutex<T> {}
+unsafe impl<T: Send + ?Sized> Sync for ReentrantMutex<T> {}
 
 #[must_use]
-pub struct ReentrantMutexGuard<'a, T: 'a> {
+pub struct ReentrantMutexGuard<'a, T: ?Sized + 'a> {
     __lock: &'a ReentrantMutex<T>,
     __poison: poison::Guard,
     __marker: marker::PhantomData<*mut ()>,  // !Send
@@ -41,7 +42,7 @@ impl<T> ReentrantMutex<T> {
             let mut mutex = ReentrantMutex {
                 inner: Box::new(sys::ReentrantMutex::uninitialized()),
                 poison: poison::Flag::new(),
-                data: t,
+                data: UnsafeCell::new(t),
             };
             mutex.inner.init();
             mutex
@@ -86,7 +87,7 @@ impl<T> ReentrantMutex<T> {
     }
 }
 
-impl<T> Drop for ReentrantMutex<T> {
+impl<T: ?Sized> Drop for ReentrantMutex<T> {
     fn drop(&mut self) {
         unsafe { self.inner.destroy() }
     }
@@ -120,12 +121,25 @@ impl<'mutex, T> ReentrantMutexGuard<'mutex, T> {
 impl<'mutex, T> Deref for ReentrantMutexGuard<'mutex, T> {
     type Target = T;
 
-    fn deref<'a>(&'a self) -> &'a T {
-        &self.__lock.data
+    fn deref(&self) -> &T {
+        unsafe { &*self.__lock.data.get() }
     }
 }
 
-impl<'a, T> Drop for ReentrantMutexGuard<'a, T> {
+impl<'mutex, T> DerefMut for ReentrantMutexGuard<'mutex, T> {
+    // type Target = T;
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.__lock.data.get() }
+    }
+}
+
+// impl<'mutex, T: ?Sized> DerefMut for MutexGuard<'mutex, T> {
+//     fn deref_mut(&mut self) -> &mut T {
+//         unsafe { &mut *self.__data.get() }
+//     }
+// }
+
+impl<'a, T: ?Sized> Drop for ReentrantMutexGuard<'a, T> {
     #[inline]
     fn drop(&mut self) {
         unsafe {
