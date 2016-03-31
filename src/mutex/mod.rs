@@ -2,7 +2,6 @@
 #![allow(unused_mut)]
 #![allow(unreachable_code)]
 
-use libc;
 
 #[cfg(unix)]
 #[path = "unix.rs"] mod sys;

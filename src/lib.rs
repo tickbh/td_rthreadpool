@@ -46,7 +46,6 @@ fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc
         sync_channel::<()>(0);
     let (thread_sync_tx, thread_sync_rx) =
         sync_channel::<()>(0);
-    let thread_name = name.clone();
     let thread = thread::Builder::new().name(name).spawn(move || {
         loop {
             let message = {
