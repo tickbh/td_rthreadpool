@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 mod mutex;
-pub use mutex::ReentrantMutex;
+pub use mutex::{ReentrantMutex, ReentrantMutexGuard};
 
 trait FnBox {
     fn call_box(self: Box<Self>);

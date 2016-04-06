@@ -11,4 +11,4 @@
 mod poison;
 mod remutex;
 
-pub use self::remutex::ReentrantMutex;
+pub use self::remutex::{ReentrantMutex, ReentrantMutexGuard};
