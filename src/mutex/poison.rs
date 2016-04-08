@@ -13,7 +13,9 @@ use std::thread;
 
 use std::any::Any;
 
-pub struct Flag { failed: UnsafeCell<bool> }
+pub struct Flag {
+    failed: UnsafeCell<bool>,
+}
 
 // This flag is only ever accessed with a lock previously held. Note that this
 // a totally private structure.
@@ -34,7 +36,9 @@ impl Flag {
     #[inline]
     pub fn done(&self, guard: &Guard) {
         if !guard.panicking && thread::panicking() {
-            unsafe { *self.failed.get() = true; }
+            unsafe {
+                *self.failed.get() = true;
+            }
         }
     }
 
@@ -115,15 +119,21 @@ impl<T> PoisonError<T> {
 
     /// Consumes this error indicating that a lock is poisoned, returning the
     /// underlying guard to allow access regardless.
-    pub fn into_inner(self) -> T { self.guard }
+    pub fn into_inner(self) -> T {
+        self.guard
+    }
 
     /// Reaches into this error indicating that a lock is poisoned, returning a
     /// reference to the underlying guard to allow access regardless.
-    pub fn get_ref(&self) -> &T { &self.guard }
+    pub fn get_ref(&self) -> &T {
+        &self.guard
+    }
 
     /// Reaches into this error indicating that a lock is poisoned, returning a
     /// mutable reference to the underlying guard to allow access regardless.
-    pub fn get_mut(&mut self) -> &mut T { &mut self.guard }
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.guard
+    }
 }
 
 impl<T> From<PoisonError<T>> for TryLockError<T> {
@@ -136,7 +146,7 @@ impl<T> fmt::Debug for TryLockError<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             TryLockError::Poisoned(..) => "Poisoned(..)".fmt(f),
-            TryLockError::WouldBlock => "WouldBlock".fmt(f)
+            TryLockError::WouldBlock => "WouldBlock".fmt(f),
         }
     }
 }
@@ -151,23 +161,23 @@ impl<T: Send + Any> Error for TryLockError<T> {
     fn description(&self) -> &str {
         match *self {
             TryLockError::Poisoned(ref p) => p.description(),
-            TryLockError::WouldBlock => "try_lock failed because the operation would block"
+            TryLockError::WouldBlock => "try_lock failed because the operation would block",
         }
     }
 
     fn cause(&self) -> Option<&Error> {
         match *self {
             TryLockError::Poisoned(ref p) => Some(p),
-            _ => None
+            _ => None,
         }
     }
 }
 
-pub fn map_result<T, U, F>(result: LockResult<T>, f: F)
-                           -> LockResult<U>
-                           where F: FnOnce(T) -> U {
+pub fn map_result<T, U, F>(result: LockResult<T>, f: F) -> LockResult<U>
+    where F: FnOnce(T) -> U
+{
     match result {
         Ok(t) => Ok(f(t)),
-        Err(PoisonError { guard }) => Err(PoisonError::new(f(guard)))
+        Err(PoisonError { guard }) => Err(PoisonError::new(f(guard))),
     }
 }

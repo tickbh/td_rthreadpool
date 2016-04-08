@@ -9,7 +9,9 @@
 use std::mem;
 use std::cell::UnsafeCell;
 
-pub struct ReentrantMutex { inner: UnsafeCell<ffi::CRITICAL_SECTION> }
+pub struct ReentrantMutex {
+    inner: UnsafeCell<ffi::CRITICAL_SECTION>,
+}
 
 unsafe impl Send for ReentrantMutex {}
 unsafe impl Sync for ReentrantMutex {}
@@ -64,7 +66,7 @@ mod ffi {
         RecursionCount: LONG,
         OwningThread: HANDLE,
         LockSemaphore: HANDLE,
-        SpinCount: ULONG_PTR
+        SpinCount: ULONG_PTR,
     }
 
     extern "system" {

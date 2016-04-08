@@ -32,7 +32,7 @@ unsafe impl<T: Send + ?Sized> Sync for ReentrantMutex<T> {}
 pub struct ReentrantMutexGuard<'a, T: ?Sized + 'a> {
     __lock: &'a ReentrantMutex<T>,
     __poison: poison::Guard,
-    __marker: marker::PhantomData<*mut ()>,  // !Send
+    __marker: marker::PhantomData<*mut ()>, // !Send
 }
 
 impl<T> ReentrantMutex<T> {
@@ -98,16 +98,17 @@ impl<T: fmt::Debug + 'static> fmt::Debug for ReentrantMutex<T> {
         match self.try_lock() {
             Ok(guard) => write!(f, "ReentrantMutex {{ data: {:?} }}", &*guard),
             Err(TryLockError::Poisoned(err)) => {
-                write!(f, "ReentrantMutex {{ data: Poisoned({:?}) }}", &**err.get_ref())
-            },
-            Err(TryLockError::WouldBlock) => write!(f, "ReentrantMutex {{ <locked> }}")
+                write!(f,
+                       "ReentrantMutex {{ data: Poisoned({:?}) }}",
+                       &**err.get_ref())
+            }
+            Err(TryLockError::WouldBlock) => write!(f, "ReentrantMutex {{ <locked> }}"),
         }
     }
 }
 
 impl<'mutex, T> ReentrantMutexGuard<'mutex, T> {
-    fn new(lock: &'mutex ReentrantMutex<T>)
-            -> LockResult<ReentrantMutexGuard<'mutex, T>> {
+    fn new(lock: &'mutex ReentrantMutex<T>) -> LockResult<ReentrantMutexGuard<'mutex, T>> {
         poison::map_result(lock.poison.borrow(), |guard| {
             ReentrantMutexGuard {
                 __lock: lock,
@@ -152,7 +153,7 @@ impl<'a, T: ?Sized> Drop for ReentrantMutexGuard<'a, T> {
 
 #[cfg(test)]
 mod test {
-    use super::{ReentrantMutex};
+    use super::ReentrantMutex;
     use std::sync::Arc;
     use std::thread;
 
@@ -205,7 +206,8 @@ mod test {
             thread::spawn(move || {
                 let lock = m.try_lock();
                 assert!(lock.is_err());
-            }).join();
+            })
+                .join();
         }
         let _lock3 = m.try_lock().unwrap();
     }
