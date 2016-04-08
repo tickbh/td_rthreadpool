@@ -32,7 +32,7 @@ unsafe impl<T: Send + ?Sized> Sync for ReentrantMutex<T> {}
 pub struct ReentrantMutexGuard<'a, T: ?Sized + 'a> {
     __lock: &'a ReentrantMutex<T>,
     __poison: poison::Guard,
-    __marker: marker::PhantomData<*mut ()>,  // !Send
+    __marker: marker::PhantomData<*mut ()>, // !Send
 }
 
 impl<T> ReentrantMutex<T> {
@@ -98,16 +98,17 @@ impl<T: fmt::Debug + 'static> fmt::Debug for ReentrantMutex<T> {
         match self.try_lock() {
             Ok(guard) => write!(f, "ReentrantMutex {{ data: {:?} }}", &*guard),
             Err(TryLockError::Poisoned(err)) => {
-                write!(f, "ReentrantMutex {{ data: Poisoned({:?}) }}", &**err.get_ref())
-            },
-            Err(TryLockError::WouldBlock) => write!(f, "ReentrantMutex {{ <locked> }}")
+                write!(f,
+                       "ReentrantMutex {{ data: Poisoned({:?}) }}",
+                       &**err.get_ref())
+            }
+            Err(TryLockError::WouldBlock) => write!(f, "ReentrantMutex {{ <locked> }}"),
         }
     }
 }
 
 impl<'mutex, T> ReentrantMutexGuard<'mutex, T> {
-    fn new(lock: &'mutex ReentrantMutex<T>)
-            -> LockResult<ReentrantMutexGuard<'mutex, T>> {
+    fn new(lock: &'mutex ReentrantMutex<T>) -> LockResult<ReentrantMutexGuard<'mutex, T>> {
         poison::map_result(lock.poison.borrow(), |guard| {
             ReentrantMutexGuard {
                 __lock: lock,
@@ -152,8 +153,7 @@ impl<'a, T: ?Sized> Drop for ReentrantMutexGuard<'a, T> {
 
 #[cfg(test)]
 mod test {
-    use super::{ReentrantMutex, ReentrantMutexGuard};
-    use std::cell::RefCell;
+    use super::ReentrantMutex;
     use std::sync::Arc;
     use std::thread;
 
@@ -176,17 +176,19 @@ mod test {
 
     #[test]
     fn is_mutex() {
-        let m = Arc::new(ReentrantMutex::new(RefCell::new(0)));
+
+
+        let m = Arc::new(ReentrantMutex::new(0));
         let lock = m.lock().unwrap();
         {
             let mc = m.clone();
             let handle = thread::spawn(move || {
                 let lock = mc.lock().unwrap();
-                assert_eq!(*lock.borrow(), 4950);
+                assert_eq!(*lock, 4950);
             });
             for i in 0..100 {
                 let mut lock = m.lock().unwrap();
-                *lock.borrow_mut() += i;
+                *lock += i;
             }
             drop(lock);
             drop(handle);
@@ -204,34 +206,10 @@ mod test {
             thread::spawn(move || {
                 let lock = m.try_lock();
                 assert!(lock.is_err());
-            }).join();
+            })
+                .join();
         }
         let _lock3 = m.try_lock().unwrap();
     }
 
-    pub struct Answer<'a>(pub ReentrantMutexGuard<'a, RefCell<u32>>);
-    impl<'a> Drop for Answer<'a> {
-        fn drop(&mut self) {
-            *self.0.borrow_mut() = 42;
-        }
-    }
-
-    #[test]
-    fn poison_works() {
-        let m = Arc::new(ReentrantMutex::new(RefCell::new(0)));
-        {
-            let mc = m.clone();
-            let _result = thread::spawn(move ||{
-                let lock = mc.lock().unwrap();
-                *lock.borrow_mut() = 1;
-                let lock2 = mc.lock().unwrap();
-                *lock.borrow_mut() = 2;
-                let _answer = Answer(lock2);
-                panic!("What the answer to my lifetimes dilemma is?");
-                drop(_answer);
-            }).join();
-        }
-        let r = m.lock().err().unwrap().into_inner();
-        assert_eq!(*r.borrow(), 42);
-    }
 }

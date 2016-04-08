@@ -9,7 +9,9 @@
 use std::mem;
 use std::cell::UnsafeCell;
 
-pub struct ReentrantMutex { inner: UnsafeCell<ffi::pthread_mutex_t> }
+pub struct ReentrantMutex {
+    inner: UnsafeCell<ffi::pthread_mutex_t>,
+}
 
 unsafe impl Send for ReentrantMutex {}
 unsafe impl Sync for ReentrantMutex {}
@@ -57,9 +59,10 @@ mod ffi {
     use libc;
     pub use self::os::{pthread_mutex_t, pthread_mutexattr_t, PTHREAD_MUTEX_RECURSIVE};
 
-    extern {
-        pub fn pthread_mutex_init(lock: *mut pthread_mutex_t, attr: *const pthread_mutexattr_t)
-                                 -> libc::c_int;
+    extern "C" {
+        pub fn pthread_mutex_init(lock: *mut pthread_mutex_t,
+                                  attr: *const pthread_mutexattr_t)
+                                  -> libc::c_int;
         pub fn pthread_mutex_destroy(lock: *mut pthread_mutex_t) -> libc::c_int;
         pub fn pthread_mutex_lock(lock: *mut pthread_mutex_t) -> libc::c_int;
         pub fn pthread_mutex_trylock(lock: *mut pthread_mutex_t) -> libc::c_int;
@@ -67,8 +70,9 @@ mod ffi {
 
         pub fn pthread_mutexattr_init(attr: *mut pthread_mutexattr_t) -> libc::c_int;
         pub fn pthread_mutexattr_destroy(attr: *mut pthread_mutexattr_t) -> libc::c_int;
-        pub fn pthread_mutexattr_settype(attr: *mut pthread_mutexattr_t, _type: libc::c_int)
-                                        -> libc::c_int;
+        pub fn pthread_mutexattr_settype(attr: *mut pthread_mutexattr_t,
+                                         _type: libc::c_int)
+                                         -> libc::c_int;
     }
 
     #[cfg(any(target_os = "freebsd", target_os = "dragonfly",
@@ -138,7 +142,9 @@ mod ffi {
         use libc;
 
         #[repr(C)]
-        pub struct pthread_mutex_t { value: libc::c_int }
+        pub struct pthread_mutex_t {
+            value: libc::c_int,
+        }
         pub type pthread_mutexattr_t = libc::c_long;
         pub const PTHREAD_MUTEX_RECURSIVE: libc::c_int = 1;
     }

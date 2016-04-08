@@ -4,11 +4,11 @@
 
 
 #[cfg(unix)]
-#[path = "unix.rs"] mod sys;
+#[path = "unix.rs"]mod sys;
 #[cfg(windows)]
-#[path = "windows.rs"] mod sys;
+#[path = "windows.rs"]mod sys;
 
 mod poison;
 mod remutex;
 
-pub use self::remutex::ReentrantMutex;
+pub use self::remutex::{ReentrantMutex, ReentrantMutexGuard};

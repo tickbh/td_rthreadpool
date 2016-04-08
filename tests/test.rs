@@ -7,7 +7,7 @@ use std::time::Duration;
 const TEST_TASKS: usize = 4;
 #[test]
 fn join_all() {
-    let mut pool = ThreadPool::new(4);
+    let pool = ThreadPool::new(4);
 
     let (tx_, rx) = sync::mpsc::channel();
 

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 mod mutex;
-pub use mutex::ReentrantMutex;
+pub use mutex::{ReentrantMutex, ReentrantMutexGuard};
 
 trait FnBox {
     fn call_box(self: Box<Self>);
@@ -25,12 +25,12 @@ enum Message {
 }
 
 pub struct ThreadPool {
-    threads      : Vec<ThreadData>,
-    job_sender   : Sender<Message>,
-    job_receiver : Arc<Mutex<Receiver<Message>>>,
+    threads: Vec<ThreadData>,
+    job_sender: Sender<Message>,
+    job_receiver: Arc<Mutex<Receiver<Message>>>,
     active_count: Arc<Mutex<usize>>,
     max_count: Arc<Mutex<usize>>,
-    name : String,
+    name: String,
 }
 
 
@@ -40,52 +40,57 @@ struct ThreadData {
     thread_sync_tx: SyncSender<()>,
 }
 
-fn create_thread(job_receiver : Arc<Mutex<Receiver<Message>>>, active_count: Arc<Mutex<usize>>, name : String) -> ThreadData {
+fn create_thread(job_receiver: Arc<Mutex<Receiver<Message>>>,
+                 active_count: Arc<Mutex<usize>>,
+                 name: String)
+                 -> ThreadData {
     let job_receiver = job_receiver.clone();
-    let (pool_sync_tx, pool_sync_rx) =
-        sync_channel::<()>(0);
-    let (thread_sync_tx, thread_sync_rx) =
-        sync_channel::<()>(0);
-    let thread = thread::Builder::new().name(name).spawn(move || {
-        loop {
-            let message = {
-                // Only lock jobs for the time it takes
-                // to get a job, not run it.
-                let lock = job_receiver.lock().unwrap();
-                lock.recv()
-            };
-            match message {
-                Ok(Message::NewJob(job)) => {
-                    *active_count.lock().unwrap() += 1;
-                    job.call_box();
-                    *active_count.lock().unwrap() -= 1;
-                }
-                Ok(Message::Join) => {
-                    // Syncronize/Join with pool.
-                    // This has to be a two step
-                    // process to ensure that all threads
-                    // finished their work before the pool
-                    // can continue
+    let (pool_sync_tx, pool_sync_rx) = sync_channel::<()>(0);
+    let (thread_sync_tx, thread_sync_rx) = sync_channel::<()>(0);
+    let thread = thread::Builder::new()
+                     .name(name)
+                     .spawn(move || {
+                         loop {
+                             let message = {
+                                 // Only lock jobs for the time it takes
+                                 // to get a job, not run it.
+                                 let lock = job_receiver.lock().unwrap();
+                                 lock.recv()
+                             };
+                             match message {
+                                 Ok(Message::NewJob(job)) => {
+                                     *active_count.lock().unwrap() += 1;
+                                     job.call_box();
+                                     *active_count.lock().unwrap() -= 1;
+                                 }
+                                 Ok(Message::Join) => {
+                                     // Syncronize/Join with pool.
+                                     // This has to be a two step
+                                     // process to ensure that all threads
+                                     // finished their work before the pool
+                                     // can continue
 
-                    // Wait until the pool started syncing with threads
-                    if pool_sync_tx.send(()).is_err() {
-                        // The pool was dropped.
-                        break;
-                    }
+                                     // Wait until the pool started syncing with threads
+                                     if pool_sync_tx.send(()).is_err() {
+                                         // The pool was dropped.
+                                         break;
+                                     }
 
-                    // Wait until the pool finished syncing with threads
-                    if thread_sync_rx.recv().is_err() {
-                        // The pool was dropped.
-                        break;
-                    }
-                }
-                Err(..) => {
-                    // The pool was dropped.
-                    break
-                }
-            }
-        }
-    }).ok().unwrap();
+                                     // Wait until the pool finished syncing with threads
+                                     if thread_sync_rx.recv().is_err() {
+                                         // The pool was dropped.
+                                         break;
+                                     }
+                                 }
+                                 Err(..) => {
+                                     // The pool was dropped.
+                                     break;
+                                 }
+                             }
+                         }
+                     })
+                     .ok()
+                     .unwrap();
     ThreadData {
         _thread_join_handle: thread,
         pool_sync_rx: pool_sync_rx,
@@ -99,7 +104,7 @@ impl ThreadPool {
         Self::new_with_name(n, "unknow".to_string())
     }
 
-    pub fn new_with_name(n : usize, name : String) -> ThreadPool {
+    pub fn new_with_name(n: usize, name: String) -> ThreadPool {
         assert!(n >= 1);
 
         let (job_sender, job_receiver) = channel();
@@ -114,12 +119,12 @@ impl ThreadPool {
         }
 
         ThreadPool {
-            threads      : threads,
-            job_sender   : job_sender,
-            job_receiver : job_receiver.clone(),
-            active_count : active_count,
-            max_count    : max_count,
-            name         : name,
+            threads: threads,
+            job_sender: job_sender,
+            job_receiver: job_receiver.clone(),
+            active_count: active_count,
+            max_count: max_count,
+            name: name,
         }
     }
 
@@ -130,7 +135,7 @@ impl ThreadPool {
 
     /// Executes the function `job` on a thread in the pool.
     pub fn execute<F>(&self, job: F)
-        where F : FnOnce() + Send + 'static
+        where F: FnOnce() + Send + 'static
     {
         self.job_sender.send(Message::NewJob(Box::new(job))).unwrap();
     }
@@ -180,13 +185,14 @@ impl ThreadPool {
         if threads <= self.thread_count() {
             return -1;
         }
-        for _ in 0 .. (threads - self.thread_count()) {
-            let thread = create_thread(self.job_receiver.clone(), self.active_count.clone(), self.name.clone());
+        for _ in 0..(threads - self.thread_count()) {
+            let thread = create_thread(self.job_receiver.clone(),
+                                       self.active_count.clone(),
+                                       self.name.clone());
             self.threads.push(thread);
         }
 
         *self.max_count.lock().unwrap() = threads;
         0
     }
-
 }
