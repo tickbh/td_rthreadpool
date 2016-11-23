@@ -1,5 +1,8 @@
 extern crate libc;
 
+use std::panic;
+use std::panic::AssertUnwindSafe;
+
 use std::sync::mpsc::{channel, Sender, Receiver, SyncSender, sync_channel, RecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -51,41 +54,48 @@ fn create_thread(job_receiver: Arc<Mutex<Receiver<Message>>>,
                      .name(name)
                      .spawn(move || {
                          loop {
-                             let message = {
-                                 // Only lock jobs for the time it takes
-                                 // to get a job, not run it.
-                                 let lock = job_receiver.lock().unwrap();
-                                 lock.recv()
-                             };
-                             match message {
-                                 Ok(Message::NewJob(job)) => {
-                                     *active_count.lock().unwrap() += 1;
-                                     job.call_box();
-                                     *active_count.lock().unwrap() -= 1;
-                                 }
-                                 Ok(Message::Join) => {
-                                     // Syncronize/Join with pool.
-                                     // This has to be a two step
-                                     // process to ensure that all threads
-                                     // finished their work before the pool
-                                     // can continue
-
-                                     // Wait until the pool started syncing with threads
-                                     if pool_sync_tx.send(()).is_err() {
-                                         // The pool was dropped.
-                                         break;
+                            let result = panic::catch_unwind(AssertUnwindSafe(|| {
+                                 let message = {
+                                     // Only lock jobs for the time it takes
+                                     // to get a job, not run it.
+                                     let lock = job_receiver.lock().unwrap();
+                                     lock.recv()
+                                 };
+                                 match message {
+                                     Ok(Message::NewJob(job)) => {
+                                         *active_count.lock().unwrap() += 1;
+                                         job.call_box();
+                                         
+                                         *active_count.lock().unwrap() -= 1;
                                      }
+                                     Ok(Message::Join) => {
+                                         // Syncronize/Join with pool.
+                                         // This has to be a two step
+                                         // process to ensure that all threads
+                                         // finished their work before the pool
+                                         // can continue
 
-                                     // Wait until the pool finished syncing with threads
-                                     if thread_sync_rx.recv().is_err() {
+                                         // Wait until the pool started syncing with threads
+                                         if pool_sync_tx.send(()).is_err() {
+                                             // The pool was dropped.
+                                             return;
+                                         }
+
+                                         // Wait until the pool finished syncing with threads
+                                         if thread_sync_rx.recv().is_err() {
+                                             // The pool was dropped.
+                                             return;
+                                         }
+                                     }
+                                     Err(..) => {
                                          // The pool was dropped.
-                                         break;
+                                         return;
                                      }
                                  }
-                                 Err(..) => {
-                                     // The pool was dropped.
-                                     break;
-                                 }
+                             }));
+
+                             if result.is_err() {
+                                println!("thread error is {:?}", result);
                              }
                          }
                      })

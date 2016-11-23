@@ -1,6 +1,6 @@
 [package]
 name = "td_rthreadpool"
-version = "0.1.1"
+version = "0.1.2"
 authors = [ "tickbh <tickdream125@hotmail.com>" ]
 
 description = "thread wrapper for Rust"
