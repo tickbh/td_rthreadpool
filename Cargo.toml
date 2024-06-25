@@ -1,6 +1,7 @@
 [package]
 name = "td_rthreadpool"
-version = "0.1.4"
+version = "0.1.5"
+edition = "2021"
 authors = [ "tickbh <tickdream125@hotmail.com>" ]
 
 description = "thread wrapper for Rust"
@@ -11,3 +12,4 @@ keywords = ["threadpool", "mutex"]
 
 [dependencies]
 libc = "^0.2.1"
+log = "0.4"

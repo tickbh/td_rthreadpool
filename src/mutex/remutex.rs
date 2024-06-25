@@ -80,7 +80,7 @@ impl<T> ReentrantMutex<T> {
     /// acquired.
     pub fn try_lock(&self) -> TryLockResult<ReentrantMutexGuard<T>> {
         if unsafe { self.inner.try_lock() } {
-            Ok(try!(ReentrantMutexGuard::new(&self)))
+            Ok(ReentrantMutexGuard::new(&self)?)
         } else {
             Err(TryLockError::WouldBlock)
         }

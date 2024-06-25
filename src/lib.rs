@@ -1,5 +1,5 @@
-extern crate libc;
 
+use log::error;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 
@@ -20,7 +20,7 @@ impl<F: FnOnce()> FnBox for F {
     }
 }
 
-type Thunk<'a> = Box<FnBox + Send + 'a>;
+type Thunk<'a> = Box<dyn FnBox + Send + 'a>;
 
 enum Message {
     NewJob(Thunk<'static>),
@@ -99,7 +99,7 @@ fn create_thread(job_receiver: Arc<Mutex<Receiver<Message>>>,
                             }));
 
                             if result.is_err() {
-                                println!("thread error is {:?}", result);
+                                error!("线程发生错误: {:?}", result);
                             }
                             if is_exit {
                                 break;
@@ -110,8 +110,8 @@ fn create_thread(job_receiver: Arc<Mutex<Receiver<Message>>>,
                      .unwrap();
     ThreadData {
         _thread_join_handle: thread,
-        pool_sync_rx: pool_sync_rx,
-        thread_sync_tx: thread_sync_tx,
+        pool_sync_rx,
+        thread_sync_tx,
     }
 }
 impl ThreadPool {
@@ -136,12 +136,12 @@ impl ThreadPool {
         }
 
         ThreadPool {
-            threads: threads,
-            job_sender: job_sender,
+            threads,
+            job_sender,
             job_receiver: job_receiver.clone(),
-            active_count: active_count,
-            max_count: max_count,
-            name: name,
+            active_count,
+            max_count,
+            name,
         }
     }
 
